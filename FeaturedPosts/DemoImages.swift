@@ -3,6 +3,8 @@ import ImageIO
 import CryptoKit
 import os
 
+/// 线程安全的 LRU 内存缓存。
+/// 通过双向链表维护最近访问顺序，超出 cost 上限时从尾部淘汰。
 final class LRUCache<Key: Hashable, Value> {
     final class Node {
         let key: Key
@@ -99,6 +101,8 @@ final class LRUCache<Key: Hashable, Value> {
     }
 }
 
+/// 将较重但不要求立即执行的任务延后到主线程 RunLoop 空闲时触发，
+/// 避免滚动/点击等高优先级交互期间抢占主线程时机。
 final class RunLoopIdleWorkScheduler {
     static let shared = RunLoopIdleWorkScheduler()
 
@@ -175,6 +179,8 @@ enum ImageDownsampler {
     }
 }
 
+/// 为图片请求补充防盗链参数与请求头。
+/// 当开关关闭时直接返回普通请求，便于本地调试与灰度切换。
 struct ImageRequestSigner {
     static func signedRequest(for url: URL) -> URLRequest {
         guard FeatureFlagCenter.shared.bool(.imageAntiHotlinkEnabled) else {
@@ -202,6 +208,8 @@ struct ImageRequestSigner {
     }
 }
 
+/// 图片加载器：负责内存缓存、请求去重、后台解码与主线程回调分发。
+/// 同一 URL + 尺寸组合的并发请求会合并为一次网络请求，减少重复下载。
 final class ImageLoader {
     static let shared = ImageLoader()
 
@@ -230,6 +238,10 @@ final class ImageLoader {
         session = URLSession(configuration: config)
     }
 
+    /// 加载指定尺寸的图片。
+    /// 1. 先查内存缓存
+    /// 2. 命中进行中的相同请求则复用任务
+    /// 3. 下载完成后在后台降采样，再统一回到主线程分发结果
     @discardableResult
     func loadImage(url: URL, targetPixelSize: CGSize, completion: @escaping (Result<UIImage, Error>) -> Void) -> UUID {
         let token = UUID()
@@ -311,6 +323,7 @@ final class ImageLoader {
         }
     }
 
+    /// 完成一次 in-flight 请求，清理 token 映射，并把结果派发给所有等待中的 completion。
     private func finish(key: String, result: Result<UIImage, Error>) {
         lock.lock()
         let inflight = inFlight[key]
@@ -337,6 +350,7 @@ final class ImageLoader {
     }
 }
 
+/// 面向 UI/VM 暴露的图片加载抽象，方便依赖注入与测试替身替换。
 protocol ImageLoading {
     @discardableResult
     func loadImage(url: URL, targetPixelSize: CGSize, completion: @escaping (Result<UIImage, Error>) -> Void) -> UUID
@@ -352,6 +366,8 @@ protocol JPEGCompressing {
 
 extension ImageCompressor: JPEGCompressing {}
 
+/// 图片压缩器：先按像素尺寸缩放，再逐步降低 JPEG 质量，必要时继续缩图，
+/// 尽量在目标字节上限内保留可接受的清晰度。
 struct ImageCompressor {
     enum CompressionError: Error {
         case jpegEncodeFailed

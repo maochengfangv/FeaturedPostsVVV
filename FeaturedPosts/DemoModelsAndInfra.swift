@@ -2,6 +2,8 @@ import Foundation
 import Network
 import os
 
+/// 帖子领域模型。
+/// 作为 Feed 列表在网络层、持久层、UI 层之间传递的统一数据结构。
 struct Post: Codable, Equatable, Identifiable {
     let id: String
     let author: String
@@ -45,6 +47,7 @@ struct Post: Codable, Equatable, Identifiable {
     }
 }
 
+/// Feed 数据源抽象，屏蔽真实网络 / Mock 实现差异。
 protocol FeedAPI {
     func fetchFeed(page: Int, pageSize: Int) async throws -> [Post]
 }
@@ -72,6 +75,7 @@ struct MockFeedAPI: FeedAPI {
     }
 }
 
+/// 帖子持久化抽象，供 VM 读取缓存与落盘，不感知底层是 SQLite 还是其他存储。
 protocol PostStoring {
     func save(posts: [Post]) throws
     func fetchLatest(limit: Int) throws -> [Post]
@@ -86,6 +90,8 @@ enum FeatureFlagKey: String, CaseIterable {
     case imageAntiHotlinkEnabled
 }
 
+/// 特性开关中心。
+/// 统一管理灰度开关、降级开关与实验开关，避免业务代码直接读写 UserDefaults。
 final class FeatureFlagCenter {
     static let shared = FeatureFlagCenter(userDefaults: .standard)
 
@@ -119,6 +125,8 @@ protocol FeatureFlagProviding {
 
 extension FeatureFlagCenter: FeatureFlagProviding {}
 
+/// 网络状态监听器。
+/// 基于 NWPathMonitor 持续感知在线状态，供业务层做弱网降级判断。
 final class NetworkStateMonitor {
     static let shared = NetworkStateMonitor()
 
@@ -151,6 +159,8 @@ protocol NetworkMonitoring {
 
 extension NetworkStateMonitor: NetworkMonitoring {}
 
+/// 令牌桶限流器。
+/// 用于抑制短时间内的重复刷新/重复分页请求，避免接口被高频触发。
 final class RateLimiter {
     private let maxTokens: Int
     private let refillInterval: TimeInterval
@@ -187,6 +197,8 @@ final class RateLimiter {
     }
 }
 
+/// Feed 页面业务编排层。
+/// 负责首屏加载、分页、离线降级、缓存回填与错误输出；不直接依赖 UIKit。
 @MainActor
 final class FeedViewModel {
     private let api: FeedAPI
@@ -212,6 +224,7 @@ final class FeedViewModel {
         self.featureFlags = featureFlags
     }
 
+    /// 首次加载：优先尝试读取本地缓存，再继续发起线上刷新。
     func loadInitial() async {
         if featureFlags.bool(.diskPostCacheEnabled) {
             if let cached = try? store.fetchLatest(limit: 50), !cached.isEmpty {
@@ -222,6 +235,7 @@ final class FeedViewModel {
         await refresh()
     }
 
+    /// 下拉刷新：受限流器保护，并在离线且无内容时输出降级提示。
     func refresh() async {
         guard !isLoading else { return }
         guard limiter.tryAcquire() else { return }
@@ -251,6 +265,7 @@ final class FeedViewModel {
         }
     }
 
+    /// 触底分页：接近列表尾部时触发，避免重复追加同一页。
     func loadNextPageIfNeeded(currentIndex: Int) async {
         guard currentIndex >= posts.count - 6 else { return }
         guard !isLoading else { return }
@@ -282,6 +297,7 @@ final class FeedViewModel {
     }
 }
 
+/// 发布前校验器，集中封装文案与图片数量规则。
 struct PublishValidator {
     let maxImages: Int
     let maxTextLength: Int
@@ -310,6 +326,7 @@ struct PublishValidator {
     }
 }
 
+/// 基于 actor 的轻量异步信号量，用于限制并发上传数量。
 actor AsyncSemaphore {
     private var value: Int
     init(value: Int) { self.value = value }
@@ -328,6 +345,8 @@ protocol JPEGUploading {
     func uploadJPEG(_ data: Data, filename: String) async throws -> URL
 }
 
+/// 上传服务抽象实现。
+/// 当前为 mock 上传，后续可无缝替换为真实上传接口。
 final class UploadService: JPEGUploading {
     static let shared = UploadService()
 
@@ -356,6 +375,8 @@ enum AnalyticsEvent: String {
     case publishRollbackDisabled
 }
 
+/// 埋点追踪器。
+/// 统一收口业务事件，异步写日志并支持通过特性开关整体关闭。
 final class AnalyticsTracker {
     static let shared = AnalyticsTracker()
 

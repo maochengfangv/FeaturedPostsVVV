@@ -1,6 +1,8 @@
 import UIKit
 import PhotosUI
 
+/// Feed 列表单元格。
+/// 负责帖子文案与最多 3 张图片的展示，并在复用时取消旧图片任务避免错图。
 final class FeedPostCell: UITableViewCell {
     static let reuseIdentifier = "FeedPostCell"
 
@@ -48,6 +50,7 @@ final class FeedPostCell: UITableViewCell {
 
     required init?(coder: NSCoder) { nil }
 
+    /// Cell 复用前清理旧的加载任务与图片内容，避免异步回调把旧图刷到新 cell 上。
     override func prepareForReuse() {
         super.prepareForReuse()
 
@@ -61,6 +64,8 @@ final class FeedPostCell: UITableViewCell {
         lastPostID = nil
     }
 
+    /// 绑定帖子数据并触发图片加载。
+    /// 图片成功/失败都会记录埋点，用于观察加载质量。
     func configure(postID: String, author: String, text: String, imageURLs: [URL], imageLoader: ImageLoading, analytics: AnalyticsTracking) {
         self.imageLoader = imageLoader
         authorLabel.text = author
@@ -115,8 +120,11 @@ final class FeedPostCell: UITableViewCell {
     }
 }
 
+/// 发布页面的业务编排层。
+/// 负责选图状态、发布开关、上传进度、文案校验与并发上传控制。
 @MainActor
 final class PublishViewModel {
+    /// 面向 UI 的最小状态快照，避免 VC 直接读取内部业务字段。
     struct State {
         var selectedCount: Int
         var maxImages: Int
@@ -174,6 +182,7 @@ final class PublishViewModel {
         analytics.track(.publishPickImages, properties: nil)
     }
 
+    /// 执行发布：先做开关与参数校验，再并发压缩上传，并持续回写进度状态。
     func upload(text: String) async {
         analytics.track(.publishTapUpload, properties: ["count": selectedImages.count])
 
@@ -230,6 +239,8 @@ final class PublishViewModel {
     }
 }
 
+/// 发布页控制器。
+/// 只负责 UIKit 视图搭建、用户交互转发与 ViewModel 状态绑定，不承载具体业务逻辑。
 final class NotePublishViewController: UIViewController {
     private let viewModel: PublishViewModel
 
@@ -299,6 +310,7 @@ final class NotePublishViewController: UIViewController {
         }
     }
 
+    /// 将 VM 输出状态映射到界面控件。
     private func apply(state: PublishViewModel.State) {
         countLabel.text = state.countText
         statusLabel.text = state.statusText
@@ -329,6 +341,8 @@ final class NotePublishViewController: UIViewController {
     }
 }
 
+/// 处理系统照片选择器回调。
+/// 多个 provider 的回调可能并发返回，因此使用锁保护临时数组写入。
 extension NotePublishViewController: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         dismiss(animated: true)

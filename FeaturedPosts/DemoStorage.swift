@@ -1,6 +1,8 @@
 import Foundation
 import SQLite3
 
+/// SQLite 原生句柄的轻量封装。
+/// 负责连接生命周期、SQL 执行与 statement 预编译。
 final class SQLiteDatabase {
     private let db: OpaquePointer?
 
@@ -41,6 +43,8 @@ final class SQLiteDatabase {
     func rollback() throws { try execute("ROLLBACK;") }
 }
 
+/// 帖子持久层实现。
+/// 通过串行队列保证线程安全，对外提供帖子缓存读写能力。
 final class SQLitePostStore {
     private let db: SQLiteDatabase
     private let queue = DispatchQueue(label: "SQLitePostStore.queue")
@@ -62,6 +66,8 @@ final class SQLitePostStore {
         try migrate()
     }
 
+    /// 初始化数据库表结构与索引。
+    /// 当前版本仅包含 posts 表，后续可在这里继续扩展迁移逻辑。
     private func migrate() throws {
         try db.execute("""
         CREATE TABLE IF NOT EXISTS posts (
@@ -75,6 +81,8 @@ final class SQLitePostStore {
         try db.execute("CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);")
     }
 
+    /// 批量保存帖子。
+    /// 使用事务保证一批数据要么全部成功，要么全部回滚，避免脏数据。
     func save(posts: [Post]) throws {
         try queue.sync {
             try db.beginTransaction()
@@ -116,6 +124,7 @@ final class SQLitePostStore {
         }
     }
 
+    /// 按创建时间倒序读取最新帖子，用于冷启动缓存回填与离线降级展示。
     func fetchLatest(limit: Int) throws -> [Post] {
         try queue.sync {
             let sql = """
@@ -148,4 +157,5 @@ final class SQLitePostStore {
     }
 }
 
+/// 通过协议暴露持久化能力，避免上层直接依赖具体 SQLite 实现。
 extension SQLitePostStore: PostStoring {}
