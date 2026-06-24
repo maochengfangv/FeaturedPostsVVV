@@ -13,10 +13,41 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
-        // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
-        // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
-        guard let _ = (scene as? UIWindowScene) else { return }
+        guard let windowScene = scene as? UIWindowScene else { return }
+
+        let featureFlags = FeatureFlagCenter.shared
+        let analytics = AnalyticsTracker.shared
+
+        let feedVM = FeedViewModel(
+            api: MockFeedAPI(),
+            store: SQLitePostStore(),
+            networkMonitor: NetworkStateMonitor.shared,
+            featureFlags: featureFlags
+        )
+        let feed = ViewController(viewModel: feedVM, imageLoader: ImageLoader.shared, featureFlags: featureFlags, analytics: analytics)
+        feed.title = "Feed"
+        let feedNav = UINavigationController(rootViewController: feed)
+        feedNav.tabBarItem = UITabBarItem(title: "Feed", image: UIImage(systemName: "list.bullet"), tag: 0)
+
+        let publishVM = PublishViewModel(
+            uploader: UploadService.shared,
+            compressor: ImageCompressor(),
+            validator: PublishValidator(maxImages: 9, maxTextLength: 1000),
+            featureFlags: featureFlags,
+            analytics: analytics
+        )
+        let publish = NotePublishViewController(viewModel: publishVM)
+        publish.title = "Publish"
+        let publishNav = UINavigationController(rootViewController: publish)
+        publishNav.tabBarItem = UITabBarItem(title: "Publish", image: UIImage(systemName: "square.and.arrow.up"), tag: 1)
+
+        let tab = UITabBarController()
+        tab.setViewControllers([feedNav, publishNav], animated: false)
+
+        let window = UIWindow(windowScene: windowScene)
+        window.rootViewController = tab
+        window.makeKeyAndVisible()
+        self.window = window
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {

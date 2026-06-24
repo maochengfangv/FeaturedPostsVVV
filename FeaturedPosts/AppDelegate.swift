@@ -9,11 +9,22 @@ import UIKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-
-
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+       URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024, diskPath: "urlcache")
+
+        FeatureFlagCenter.shared.registerDefaults([
+            .imagePrefetchEnabled: true,
+            .weakNetworkDegradeEnabled: true,
+            .diskPostCacheEnabled: true,
+            .analyticsEnabled: true,
+            .publishV2Enabled: true,
+            .imageAntiHotlinkEnabled: true
+        ])
+
+        AnalyticsTracker.shared.start()
+        CrashReporter.shared.start()
+        MemoryGuard.shared.start(imageCache: ImageLoader.shared.memoryCache)
+
         return true
     }
 
@@ -32,5 +43,58 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 
+}
+
+final class CrashReporter {
+    static let shared = CrashReporter()
+
+    private init() {}
+
+    func start() {
+        NSSetUncaughtExceptionHandler { exception in
+            let name = exception.name.rawValue
+            let reason = exception.reason ?? ""
+            let stacks = exception.callStackSymbols.joined(separator: "\n")
+            CrashReporter.shared.persist("UncaughtException: \(name)\n\(reason)\n\(stacks)")
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(didReceiveMemoryWarning), name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+    }
+
+    @objc private func didReceiveMemoryWarning() {
+        persist("MemoryWarning")
+    }
+
+    private func persist(_ message: String) {
+        let text = "\(Date())\n\(message)\n"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("crash_report.log")
+        if let data = text.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: url.path) {
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    try? handle.seekToEnd()
+                    try? handle.write(contentsOf: data)
+                    try? handle.close()
+                }
+            } else {
+                try? data.write(to: url, options: .atomic)
+            }
+        }
+    }
+}
+
+final class MemoryGuard {
+    static let shared = MemoryGuard()
+
+    private weak var imageCache: LRUCache<String, UIImage>?
+
+    private init() {}
+
+    func start(imageCache: LRUCache<String, UIImage>) {
+        self.imageCache = imageCache
+        NotificationCenter.default.addObserver(self, selector: #selector(didReceiveMemoryWarning), name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+    }
+
+    @objc private func didReceiveMemoryWarning() {
+        imageCache?.removeAll()
+    }
 }
 

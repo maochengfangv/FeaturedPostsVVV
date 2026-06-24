@@ -6,31 +6,69 @@
 //
 
 import XCTest
+import UIKit
 @testable import FeaturedPosts
 
 final class FeaturedPostsTests: XCTestCase {
+    func testLRUEvictionByCost() {
+        let cache = LRUCache<String, Int>(totalCostLimit: 3)
+        cache.setValue(1, forKey: "a", cost: 1)
+        cache.setValue(2, forKey: "b", cost: 1)
+        cache.setValue(3, forKey: "c", cost: 1)
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        _ = cache.value(forKey: "a")
+        cache.setValue(4, forKey: "d", cost: 1)
+
+        XCTAssertNil(cache.value(forKey: "b"))
+        XCTAssertEqual(cache.value(forKey: "a"), 1)
+        XCTAssertEqual(cache.value(forKey: "c"), 3)
+        XCTAssertEqual(cache.value(forKey: "d"), 4)
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    func testRateLimiterAllowsBurstThenBlocks() {
+        let limiter = RateLimiter(maxTokens: 2, refillInterval: 1.0)
+        XCTAssertTrue(limiter.tryAcquire())
+        XCTAssertTrue(limiter.tryAcquire())
+        XCTAssertFalse(limiter.tryAcquire())
     }
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    func testSQLitePostStoreSaveAndFetch() throws {
+        let store = try SQLitePostStore(directory: FileManager.default.temporaryDirectory)
+        let posts = (0..<3).map { idx in
+            Post(
+                id: "p_\(idx)",
+                author: "a",
+                text: "t_\(idx)",
+                imageURLs: [URL(string: "https://picsum.photos/id/\(idx)/300/300")!],
+                createdAt: Date(timeIntervalSince1970: TimeInterval(idx))
+            )
         }
+
+        try store.save(posts: posts)
+        let fetched = try store.fetchLatest(limit: 10)
+
+        XCTAssertEqual(Set(fetched.map { $0.id }), Set(posts.map { $0.id }))
     }
 
+    func testPublishValidator() {
+        let v = PublishValidator(maxImages: 9, maxTextLength: 1000)
+        XCTAssertNoThrow(try v.validate(text: "hi", imagesCount: 1))
+        XCTAssertThrowsError(try v.validate(text: "", imagesCount: 1))
+        XCTAssertThrowsError(try v.validate(text: "hi", imagesCount: 0))
+    }
+
+    func testImageCompressorReducesBytes() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2000, height: 2000))
+        let image = renderer.image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 2000, height: 2000))
+        }
+
+        let input = image.jpegData(compressionQuality: 1.0)!
+        let compressor = ImageCompressor()
+        let output = try compressor.compressToJPEG(image: image, maxByteSize: 200 * 1024, targetMaxPixel: 1280)
+
+        XCTAssertGreaterThan(input.count, output.count)
+        XCTAssertLessThanOrEqual(output.count, 200 * 1024)
+    }
 }

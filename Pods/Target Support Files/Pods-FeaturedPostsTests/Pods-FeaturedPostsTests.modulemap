@@ -1,0 +1,6 @@
+framework module Pods_FeaturedPostsTests {
+  umbrella header "Pods-FeaturedPostsTests-umbrella.h"
+
+  export *
+  module * { export * }
+}
