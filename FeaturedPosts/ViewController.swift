@@ -100,14 +100,20 @@ extension ViewController: UITableViewDataSource {
 
 extension ViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        // 触底分页：当即将展示到接近尾部的 cell 时，请求下一页。
+        // 具体“是否需要拉取/是否重复请求”的判断由 ViewModel 内部处理。
         Task { await viewModel.loadNextPageIfNeeded(currentIndex: indexPath.row) }
     }
 }
 
 extension ViewController: UITableViewDataSourcePrefetching {
     func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
+        // 图片预取：在系统预测用户即将滚动到的 indexPaths 上提前拉取图片，提升首屏命中率。
+        // 可通过 FeatureFlag 快速开关，便于灰度与性能对比。
         guard featureFlags.bool(.imagePrefetchEnabled) else { return }
 
+        // 将待预取的 indexPaths 映射为对应的 Post，并展开成需要预取的图片 URL 列表。
+        // guard 用于避免预取回调发生时数据源已更新导致的越界访问。
         let urls = indexPaths
             .compactMap { idx -> Post? in
                 guard idx.row < viewModel.posts.count else { return nil }
