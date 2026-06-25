@@ -88,6 +88,23 @@ enum FeatureFlagKey: String, CaseIterable {
     case analyticsEnabled
     case publishV2Enabled
     case imageAntiHotlinkEnabled
+
+    var description: String {
+        switch self {
+        case .imagePrefetchEnabled:
+            "列表图片预取开关"
+        case .weakNetworkDegradeEnabled:
+            "弱网/离线降级策略开关"
+        case .diskPostCacheEnabled:
+            "帖子磁盘缓存（SQLite）开关"
+        case .analyticsEnabled:
+            "埋点开关"
+        case .publishV2Enabled:
+            "发布流程 V2 开关"
+        case .imageAntiHotlinkEnabled:
+            "图片防盗链签名开关"
+        }
+    }
 }
 
 /// 特性开关中心。
@@ -187,11 +204,19 @@ final class RateLimiter {
     }
 
     private func refillIfNeeded(now: TimeInterval) {
+        // 距离上次补充令牌经过的时间。
         let elapsed = now - lastRefill
+
+        // 未到一个补充周期则不做任何处理。
         guard elapsed >= refillInterval else { return }
+
+        // 只结算“完整周期”的补充次数，避免把不足一个周期的时间提前消耗掉。
         let intervals = Int(elapsed / refillInterval)
         if intervals > 0 {
+            // 令牌补充到桶容量上限。
             tokens = min(maxTokens, tokens + intervals)
+
+            // lastRefill 只推进已结算的整周期时间，保留余量给下次计算，避免长期漂移。
             lastRefill += TimeInterval(intervals) * refillInterval
         }
     }

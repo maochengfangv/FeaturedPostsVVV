@@ -10,6 +10,8 @@ final class FeedPostCell: UITableViewCell {
     private let bodyLabel = UILabel()
     private let stackView = UIStackView()
 
+    private var stackViewHeightConstraint: NSLayoutConstraint?
+
     private var imageViews: [UIImageView] = []
     private var loadTokens: [UUID] = []
     private var imageLoader: ImageLoading?
@@ -31,6 +33,10 @@ final class FeedPostCell: UITableViewCell {
         stackView.spacing = 8
         stackView.distribution = .fillEqually
         stackView.alignment = .fill
+        stackView.isHidden = true
+
+        stackViewHeightConstraint = stackView.heightAnchor.constraint(equalToConstant: 120)
+        stackViewHeightConstraint?.isActive = false
 
         let container = UIStackView(arrangedSubviews: [authorLabel, bodyLabel, stackView])
         container.axis = .vertical
@@ -43,8 +49,7 @@ final class FeedPostCell: UITableViewCell {
             container.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             container.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             container.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
-            container.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
-            stackView.heightAnchor.constraint(greaterThanOrEqualToConstant: 120)
+            container.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12)
         ])
     }
 
@@ -112,11 +117,14 @@ final class FeedPostCell: UITableViewCell {
                 iv.backgroundColor = UIColor.secondarySystemBackground
                 iv.layer.cornerRadius = 10
                 iv.layer.masksToBounds = true
+                iv.setContentHuggingPriority(.defaultLow, for: .vertical)
+                iv.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
                 imageViews.append(iv)
                 stackView.addArrangedSubview(iv)
             }
         }
         stackView.isHidden = (count == 0)
+        stackViewHeightConstraint?.isActive = (count != 0)
     }
 }
 
