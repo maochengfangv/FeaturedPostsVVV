@@ -22,7 +22,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             api: MockFeedAPI(),
             store: SQLitePostStore(),
             networkMonitor: NetworkStateMonitor.shared,
-            featureFlags: featureFlags
+            featureFlags: featureFlags,
+            analytics: analytics
         )
         let feed = ViewController(viewModel: feedVM, imageLoader: ImageLoader.shared, featureFlags: featureFlags, analytics: analytics)
         feed.title = "Feed"

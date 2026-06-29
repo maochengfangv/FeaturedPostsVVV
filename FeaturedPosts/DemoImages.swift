@@ -69,6 +69,12 @@ final class LRUCache<Key: Hashable, Value> {
         totalCost = 0
     }
 
+    var currentCost: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return totalCost
+    }
+
     private func insertAtHead(_ node: Node) {
         node.prev = nil
         node.next = head
@@ -117,6 +123,12 @@ final class RunLoopIdleWorkScheduler {
         queue.append(work)
         lock.unlock()
         ensureObserver()
+    }
+
+    func removeAll() {
+        lock.lock()
+        queue.removeAll()
+        lock.unlock()
     }
 
     private func ensureObserver() {
@@ -248,6 +260,8 @@ final class ImageLoader {
         let key = "\(url.absoluteString)|\(Int(targetPixelSize.width))x\(Int(targetPixelSize.height))"
 
         if let cached = memoryCache.value(forKey: key) {
+            log.debug("memory cache hit key=\(key, privacy: .public)")
+            AnalyticsTracker.shared.track(.imageCacheHit, properties: nil)
             completion(.success(cached))
             return token
         }
@@ -316,11 +330,33 @@ final class ImageLoader {
         lock.unlock()
     }
 
-    func prefetch(urls: [URL], targetPixelSize: CGSize) {
-        guard !urls.isEmpty else { return }
-        for url in urls.prefix(30) {
-            _ = loadImage(url: url, targetPixelSize: targetPixelSize) { _ in }
+    @discardableResult
+    func prefetch(urls: [URL], targetPixelSize: CGSize) -> [UUID] {
+        guard !urls.isEmpty else { return [] }
+        return urls.prefix(30).map {
+            loadImage(url: $0, targetPixelSize: targetPixelSize) { _ in }
         }
+    }
+
+    func cancelAllLoads() {
+        lock.lock()
+        let tasks = inFlight.values.map(\.task)
+        tokenToKey.removeAll()
+        inFlight.removeAll()
+        lock.unlock()
+
+        tasks.forEach { $0.cancel() }
+        RunLoopIdleWorkScheduler.shared.removeAll()
+    }
+
+    var currentInFlightCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return inFlight.count
+    }
+
+    var currentCacheCost: Int {
+        memoryCache.currentCost
     }
 
     /// 完成一次 in-flight 请求，清理 token 映射，并把结果派发给所有等待中的 completion。
@@ -355,7 +391,8 @@ protocol ImageLoading {
     @discardableResult
     func loadImage(url: URL, targetPixelSize: CGSize, completion: @escaping (Result<UIImage, Error>) -> Void) -> UUID
     func cancelLoad(_ token: UUID)
-    func prefetch(urls: [URL], targetPixelSize: CGSize)
+    @discardableResult
+    func prefetch(urls: [URL], targetPixelSize: CGSize) -> [UUID]
 }
 
 extension ImageLoader: ImageLoading {}

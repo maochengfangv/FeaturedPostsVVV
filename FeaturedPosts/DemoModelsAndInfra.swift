@@ -230,6 +230,7 @@ final class FeedViewModel {
     private let store: PostStoring
     private let networkMonitor: NetworkMonitoring
     private let featureFlags: FeatureFlagProviding
+    private let analytics: AnalyticsTracking
 
     private let pageSize = 20
     private var page = 0
@@ -242,11 +243,12 @@ final class FeedViewModel {
     var onStateChanged: ((FeedViewModel) -> Void)?
     var onError: ((String) -> Void)?
 
-    init(api: FeedAPI, store: PostStoring, networkMonitor: NetworkMonitoring, featureFlags: FeatureFlagProviding) {
+    init(api: FeedAPI, store: PostStoring, networkMonitor: NetworkMonitoring, featureFlags: FeatureFlagProviding, analytics: AnalyticsTracking) {
         self.api = api
         self.store = store
         self.networkMonitor = networkMonitor
         self.featureFlags = featureFlags
+        self.analytics = analytics
     }
 
     /// 首次加载：优先尝试读取本地缓存，再继续发起线上刷新。
@@ -254,6 +256,7 @@ final class FeedViewModel {
         if featureFlags.bool(.diskPostCacheEnabled) {
             if let cached = try? store.fetchLatest(limit: 50), !cached.isEmpty {
                 posts = cached
+                analytics.track(.feedCacheHit, properties: ["count": cached.count])
                 onStateChanged?(self)
             }
         }
@@ -391,8 +394,11 @@ final class UploadService: JPEGUploading {
 enum AnalyticsEvent: String {
     case feedRefreshTap
     case feedImpression
+    case feedCacheHit
+    case imageCacheHit
     case imageLoadSuccess
     case imageLoadFailure
+    case memoryWarning
     case publishPickImages
     case publishTapUpload
     case publishUploadSuccess

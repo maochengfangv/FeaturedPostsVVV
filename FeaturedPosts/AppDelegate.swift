@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import os
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -85,6 +86,7 @@ final class MemoryGuard {
     static let shared = MemoryGuard()
 
     private weak var imageCache: LRUCache<String, UIImage>?
+    private let log = Logger(subsystem: "FeaturedPosts", category: "MemoryGuard")
 
     private init() {}
 
@@ -94,7 +96,14 @@ final class MemoryGuard {
     }
 
     @objc private func didReceiveMemoryWarning() {
+        let cacheCost = ImageLoader.shared.currentCacheCost
+        let inFlightCount = ImageLoader.shared.currentInFlightCount
+        log.warning("memory warning cache_cost=\(cacheCost, privacy: .public) inflight=\(inFlightCount, privacy: .public)")
+        AnalyticsTracker.shared.track(.memoryWarning, properties: ["cache_cost": cacheCost, "inflight": inFlightCount])
+
+        FeatureFlagCenter.shared.set(false, for: .imagePrefetchEnabled)
         imageCache?.removeAll()
+        ImageLoader.shared.cancelAllLoads()
     }
 }
 

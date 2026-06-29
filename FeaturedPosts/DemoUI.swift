@@ -58,15 +58,18 @@ final class FeedPostCell: UITableViewCell {
     /// Cell 复用前清理旧的加载任务与图片内容，避免异步回调把旧图刷到新 cell 上。
     override func prepareForReuse() {
         super.prepareForReuse()
+        cancelImageLoading()
+        imageViews.forEach { $0.image = nil }
+        lastPostID = nil
+    }
 
+    func cancelImageLoading() {
         if let loader = imageLoader {
             for t in loadTokens {
                 loader.cancelLoad(t)
             }
         }
         loadTokens.removeAll()
-        imageViews.forEach { $0.image = nil }
-        lastPostID = nil
     }
 
     /// 绑定帖子数据并触发图片加载。
