@@ -42,8 +42,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let publishNav = UINavigationController(rootViewController: publish)
         publishNav.tabBarItem = UITabBarItem(title: "Publish", image: UIImage(systemName: "square.and.arrow.up"), tag: 1)
 
+        let video = VideoFeedViewController(items: MockVideoFeed.items, imageLoader: ImageLoader.shared)
+        let videoNav = UINavigationController(rootViewController: video)
+        videoNav.tabBarItem = UITabBarItem(title: "Video", image: UIImage(systemName: "play.rectangle"), tag: 2)
+
         let tab = UITabBarController()
-        tab.setViewControllers([feedNav, publishNav], animated: false)
+        tab.setViewControllers([feedNav, publishNav, videoNav], animated: false)
 
         let window = UIWindow(windowScene: windowScene)
         window.rootViewController = tab
@@ -81,4 +85,3 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
 }
-
