@@ -48,43 +48,87 @@ struct VideoFeedItem: Identifiable {
 }
 
 enum MockVideoFeed {
-    static let items: [VideoFeedItem] = [
-        VideoFeedItem(
-            id: "video_1",
-            title: "海边日落",
-            subtitle: "本地命中后直接播放，首次远程播放同时落盘缓存",
-            coverURL: URL(string: "https://picsum.photos/seed/video-cover-1/720/1280")!,
-            videoURL: URL(string: "https://samplelib.com/preview/mp4/sample-5s.mp4")!
-        ),
-        VideoFeedItem(
-            id: "video_2",
-            title: "山谷穿梭",
-            subtitle: "主曝光自动播 + 预缓存下一个视频",
-            coverURL: URL(string: "https://picsum.photos/seed/video-cover-2/720/1280")!,
-            videoURL: URL(string: "https://samplelib.com/preview/mp4/sample-10s.mp4")!
-        ),
-        VideoFeedItem(
-            id: "video_3",
-            title: "城市夜景",
-            subtitle: "首帧时间、失败率、弱网降级均可埋点",
-            coverURL: URL(string: "https://picsum.photos/seed/video-cover-3/720/1280")!,
-            videoURL: URL(string: "https://samplelib.com/preview/mp4/sample-15s.mp4")!
-        ),
-        VideoFeedItem(
-            id: "video_4",
-            title: "公路旅行",
-            subtitle: "更完整状态机：buffering / ended / replay",
-            coverURL: URL(string: "https://picsum.photos/seed/video-cover-4/720/1280")!,
-            videoURL: URL(string: "https://filesamples.com/samples/video/mp4/sample_640x360.mp4")!
-        ),
-        VideoFeedItem(
-            id: "video_5",
-            title: "雨后森林",
-            subtitle: "进后台自动暂停，回前台按状态恢复",
-            coverURL: URL(string: "https://picsum.photos/seed/video-cover-5/720/1280")!,
-            videoURL: URL(string: "https://filesamples.com/samples/video/mp4/sample_960x400_ocean_with_audio.mp4")!
-        )
+    private static let videoURLs: [URL] = [
+        URL(string: "https://samplelib.com/preview/mp4/sample-5s.mp4")!,
+        URL(string: "https://samplelib.com/preview/mp4/sample-10s.mp4")!,
+        URL(string: "https://samplelib.com/preview/mp4/sample-15s.mp4")!,
+        URL(string: "https://filesamples.com/samples/video/mp4/sample_640x360.mp4")!,
+        URL(string: "https://filesamples.com/samples/video/mp4/sample_960x400_ocean_with_audio.mp4")!
     ]
+
+    private static let titlePrefixes: [String] = [
+        "海边",
+        "山谷",
+        "城市",
+        "公路",
+        "森林",
+        "湖畔",
+        "清晨",
+        "黄昏",
+        "雨后",
+        "夜色"
+    ]
+
+    private static let titleSuffixes: [String] = [
+        "日落",
+        "穿梭",
+        "夜景",
+        "旅行",
+        "回声",
+        "来信",
+        "轨迹",
+        "碎片",
+        "风暴",
+        "微光"
+    ]
+
+    private static let subtitleScenes: [String] = [
+        "本地命中后直接播放",
+        "主曝光自动播切换",
+        "首帧时间持续统计",
+        "弱网封面降级兜底",
+        "buffering/ended/replay 状态完整",
+        "进后台自动暂停并恢复",
+        "预缓存下一个视频",
+        "缓存来源区分 disk/remote",
+        "调试面板实时更新",
+        "长列表滑动稳定性验证"
+    ]
+
+    private static let subtitleGoals: [String] = [
+        "用于验证预缓存命中率",
+        "用于验证自动播放命中率",
+        "用于观察首帧耗时变化",
+        "用于检查弱网降级次数",
+        "用于检查缓冲次数与完成率",
+        "用于检查离屏取消是否生效",
+        "用于观察内存与复用行为",
+        "用于验证页面生命周期恢复",
+        "用于测试长列表连续滚动",
+        "用于验证日志面板与埋点"
+    ]
+
+    private static func title(for index: Int) -> String {
+        let prefix = titlePrefixes[index % titlePrefixes.count]
+        let suffix = titleSuffixes[(index / titlePrefixes.count) % titleSuffixes.count]
+        return "\(prefix)\(suffix) \(index + 1)"
+    }
+
+    private static func subtitle(for index: Int) -> String {
+        let scene = subtitleScenes[index % subtitleScenes.count]
+        let goal = subtitleGoals[(index / subtitleScenes.count) % subtitleGoals.count]
+        return "\(scene)，\(goal)"
+    }
+
+    static let items: [VideoFeedItem] = (0..<100).map { index in
+        VideoFeedItem(
+            id: "video_\(index)",
+            title: title(for: index),
+            subtitle: subtitle(for: index),
+            coverURL: URL(string: "https://picsum.photos/seed/video-cover-\(index)/720/1280")!,
+            videoURL: videoURLs[index % videoURLs.count]
+        )
+    }
 }
 
 final class VideoCachePreloader {
