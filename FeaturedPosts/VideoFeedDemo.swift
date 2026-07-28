@@ -23,37 +23,37 @@ enum MockVideoFeed {
         VideoFeedItem(
             id: "video_1",
             title: "海边日落",
-            subtitle: "单播放器复用 + 封面优先显示",
+            subtitle: "单播放器复用 + HLS 播放更稳定",
             coverURL: URL(string: "https://picsum.photos/seed/video-cover-1/720/1280")!,
-            videoURL: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")!
+            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8")!
         ),
         VideoFeedItem(
             id: "video_2",
             title: "山谷穿梭",
             subtitle: "主曝光 cell 自动播放",
             coverURL: URL(string: "https://picsum.photos/seed/video-cover-2/720/1280")!,
-            videoURL: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4")!
+            videoURL: URL(string: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8")!
         ),
         VideoFeedItem(
             id: "video_3",
             title: "城市夜景",
             subtitle: "预热下一个 AVPlayerItem",
             coverURL: URL(string: "https://picsum.photos/seed/video-cover-3/720/1280")!,
-            videoURL: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4")!
+            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8")!
         ),
         VideoFeedItem(
             id: "video_4",
             title: "公路旅行",
             subtitle: "滚动停止后再判定切换",
             coverURL: URL(string: "https://picsum.photos/seed/video-cover-4/720/1280")!,
-            videoURL: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4")!
+            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/gear1/prog_index.m3u8")!
         ),
         VideoFeedItem(
             id: "video_5",
             title: "雨后森林",
             subtitle: "离屏立即取消封面任务",
             coverURL: URL(string: "https://picsum.photos/seed/video-cover-5/720/1280")!,
-            videoURL: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4")!
+            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8")!
         )
     ]
 }
