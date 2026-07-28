@@ -14,6 +14,31 @@ enum VideoPlaybackState: Equatable {
     case failed(String)
 }
 
+struct VideoDebugMetrics {
+    var autoplayAttempts: Int = 0
+    var autoplayHits: Int = 0
+    var bufferingCount: Int = 0
+    var completionCount: Int = 0
+    var failureCount: Int = 0
+    var weakFallbackCount: Int = 0
+    var cacheHitCount: Int = 0
+    var lastFirstFrameMS: Int = 0
+    var currentVideoID: String = "-"
+    var currentSource: String = "-"
+
+    var debugText: String {
+        """
+        Video: \(currentVideoID)
+        Source: \(currentSource)
+        FFP: \(lastFirstFrameMS)ms
+        Auto: \(autoplayHits)/\(autoplayAttempts)
+        Buffer: \(bufferingCount)  End: \(completionCount)
+        CacheHit: \(cacheHitCount)  Fail: \(failureCount)
+        WeakFallback: \(weakFallbackCount)
+        """
+    }
+}
+
 struct VideoFeedItem: Identifiable {
     let id: String
     let title: String
@@ -184,7 +209,7 @@ final class VideoPlayerEngine {
             guard let self else { return }
             switch player.timeControlStatus {
             case .paused:
-                if self.currentState != .ended, self.currentState != .failed("") {
+                if self.currentState != .ended, self.isFailedState(self.currentState) == false {
                     self.updateState(.paused)
                 }
             case .waitingToPlayAtSpecifiedRate:
@@ -303,6 +328,11 @@ final class VideoPlayerEngine {
         }
         currentState = state
         onStateChanged?(state)
+    }
+
+    private func isFailedState(_ state: VideoPlaybackState) -> Bool {
+        if case .failed = state { return true }
+        return false
     }
 }
 
@@ -517,6 +547,7 @@ final class VideoFeedViewController: UIViewController {
     private let items: [VideoFeedItem]
     private let playerEngine = VideoPlayerEngine()
     private let cachePreloader = VideoCachePreloader()
+    private let debugPanelLabel = UILabel()
 
     private var currentPlayingIndexPath: IndexPath?
     private var currentPlaybackState: VideoPlaybackState = .idle
@@ -526,6 +557,7 @@ final class VideoFeedViewController: UIViewController {
     private var pendingAutoplayIndexPath: IndexPath?
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var shouldResumeAfterForeground = false
+    private var debugMetrics = VideoDebugMetrics()
 
     init(items: [VideoFeedItem], imageLoader: ImageLoading, networkMonitor: NetworkMonitoring, featureFlags: FeatureFlagProviding, analytics: AnalyticsTracking) {
         self.items = items
@@ -555,6 +587,9 @@ final class VideoFeedViewController: UIViewController {
         playerEngine.onFirstFrame = { [weak self] duration, source in
             guard let self, let indexPath = self.currentPlayingIndexPath else { return }
             let item = self.items[indexPath.row]
+            self.debugMetrics.currentVideoID = item.id
+            self.debugMetrics.currentSource = source
+            self.debugMetrics.lastFirstFrameMS = Int(duration * 1000)
             self.analytics.track(.videoFirstFrame, properties: [
                 "video_id": item.id,
                 "duration_ms": Int(duration * 1000),
@@ -562,8 +597,10 @@ final class VideoFeedViewController: UIViewController {
             ])
             if self.pendingAutoplayIndexPath == indexPath {
                 self.pendingAutoplayIndexPath = nil
+                self.debugMetrics.autoplayHits += 1
                 self.analytics.track(.videoAutoplayHit, properties: ["video_id": item.id])
             }
+            self.updateDebugPanel()
         }
 
         tableView.register(VideoFeedCell.self, forCellReuseIdentifier: VideoFeedCell.reuseIdentifier)
@@ -586,6 +623,22 @@ final class VideoFeedViewController: UIViewController {
             tableView.topAnchor.constraint(equalTo: view.topAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+
+        debugPanelLabel.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
+        debugPanelLabel.textColor = .white
+        debugPanelLabel.numberOfLines = 0
+        debugPanelLabel.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        debugPanelLabel.layer.cornerRadius = 12
+        debugPanelLabel.layer.masksToBounds = true
+        debugPanelLabel.textAlignment = .left
+        debugPanelLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(debugPanelLabel)
+        NSLayoutConstraint.activate([
+            debugPanelLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
+            debugPanelLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            debugPanelLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 220)
+        ])
+        updateDebugPanel()
 
         observeAppLifecycle()
     }
@@ -647,7 +700,9 @@ final class VideoFeedViewController: UIViewController {
             playerEngine.pause()
             let fallback = VideoPlaybackState.coverOnly("弱网/离线，仅展示封面")
             if cellStates[indexPath] != fallback {
+                debugMetrics.weakFallbackCount += 1
                 analytics.track(.videoWeakNetworkFallback, properties: ["video_id": items[indexPath.row].id])
+                updateDebugPanel()
             }
             applyState(fallback, for: indexPath)
             return
@@ -670,6 +725,7 @@ final class VideoFeedViewController: UIViewController {
     private func playItem(at indexPath: IndexPath, autoplay: Bool, replay: Bool) {
         currentPlayingIndexPath = indexPath
         let item = items[indexPath.row]
+        debugMetrics.currentVideoID = item.id
 
         if let cell = tableView.cellForRow(at: indexPath) as? VideoFeedCell {
             playerEngine.attach(to: cell.playerContainerView)
@@ -677,14 +733,17 @@ final class VideoFeedViewController: UIViewController {
 
         cachePreloader.preload(url: item.videoURL)
         if cachePreloader.isCached(item.videoURL) {
+            debugMetrics.cacheHitCount += 1
             analytics.track(.videoCacheHit, properties: ["video_id": item.id])
         }
 
         let playbackURL = cachePreloader.playbackURL(for: item.videoURL)
         let source = cachePreloader.isCached(item.videoURL) ? "disk" : "remote"
+        debugMetrics.currentSource = source
 
         if autoplay {
             pendingAutoplayIndexPath = indexPath
+            debugMetrics.autoplayAttempts += 1
             analytics.track(.videoAutoplayAttempt, properties: ["video_id": item.id])
         } else {
             pendingAutoplayIndexPath = nil
@@ -692,6 +751,7 @@ final class VideoFeedViewController: UIViewController {
 
         applyState(replay ? .replaying : .loading, for: indexPath)
         playerEngine.play(url: playbackURL, source: source)
+        updateDebugPanel()
 
         let nextIndex = indexPath.row + 1
         if nextIndex < items.count {
@@ -721,13 +781,25 @@ final class VideoFeedViewController: UIViewController {
 
     private func applyState(_ state: VideoPlaybackState, for indexPath: IndexPath?) {
         guard let indexPath else { return }
+        let previousState = cellStates[indexPath]
         cellStates[indexPath] = state
         if currentPlayingIndexPath == indexPath {
             currentPlaybackState = state
         }
 
         switch state {
+        case .buffering:
+            if previousState != .buffering {
+                debugMetrics.bufferingCount += 1
+                analytics.track(.videoBuffering, properties: ["video_id": items[indexPath.row].id])
+            }
+        case .ended:
+            if previousState != .ended {
+                debugMetrics.completionCount += 1
+                analytics.track(.videoPlaybackCompleted, properties: ["video_id": items[indexPath.row].id])
+            }
         case .failed:
+            debugMetrics.failureCount += 1
             analytics.track(.videoPlaybackFailure, properties: ["video_id": items[indexPath.row].id])
         default:
             break
@@ -736,6 +808,7 @@ final class VideoFeedViewController: UIViewController {
         if let cell = tableView.cellForRow(at: indexPath) as? VideoFeedCell {
             cell.apply(state: state, isActive: currentPlayingIndexPath == indexPath)
         }
+        updateDebugPanel()
     }
 
     private func refreshVisibleCellStates() {
@@ -743,6 +816,10 @@ final class VideoFeedViewController: UIViewController {
             let state = cellStates[indexPath] ?? .idle
             (tableView.cellForRow(at: indexPath) as? VideoFeedCell)?.apply(state: state, isActive: currentPlayingIndexPath == indexPath)
         }
+    }
+
+    private func updateDebugPanel() {
+        debugPanelLabel.text = "  \(debugMetrics.debugText.replacingOccurrences(of: "\n", with: "\n  "))  "
     }
 }
 

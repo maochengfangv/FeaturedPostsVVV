@@ -403,6 +403,8 @@ enum AnalyticsEvent: String {
     case videoAutoplayAttempt
     case videoAutoplayHit
     case videoFirstFrame
+    case videoBuffering
+    case videoPlaybackCompleted
     case videoPlaybackFailure
     case videoWeakNetworkFallback
     case videoReplay
