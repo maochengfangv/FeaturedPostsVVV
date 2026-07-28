@@ -42,7 +42,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let publishNav = UINavigationController(rootViewController: publish)
         publishNav.tabBarItem = UITabBarItem(title: "Publish", image: UIImage(systemName: "square.and.arrow.up"), tag: 1)
 
-        let video = VideoFeedViewController(items: MockVideoFeed.items, imageLoader: ImageLoader.shared)
+        let video = VideoFeedViewController(
+            items: MockVideoFeed.items,
+            imageLoader: ImageLoader.shared,
+            networkMonitor: NetworkStateMonitor.shared,
+            featureFlags: featureFlags
+        )
         let videoNav = UINavigationController(rootViewController: video)
         videoNav.tabBarItem = UITabBarItem(title: "Video", image: UIImage(systemName: "play.rectangle"), tag: 2)
 
