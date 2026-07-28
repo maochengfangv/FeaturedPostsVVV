@@ -399,6 +399,13 @@ enum AnalyticsEvent: String {
     case imageLoadSuccess
     case imageLoadFailure
     case memoryWarning
+    case videoCacheHit
+    case videoAutoplayAttempt
+    case videoAutoplayHit
+    case videoFirstFrame
+    case videoPlaybackFailure
+    case videoWeakNetworkFallback
+    case videoReplay
     case publishPickImages
     case publishTapUpload
     case publishUploadSuccess

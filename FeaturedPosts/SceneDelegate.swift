@@ -46,7 +46,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             items: MockVideoFeed.items,
             imageLoader: ImageLoader.shared,
             networkMonitor: NetworkStateMonitor.shared,
-            featureFlags: featureFlags
+            featureFlags: featureFlags,
+            analytics: analytics
         )
         let videoNav = UINavigationController(rootViewController: video)
         videoNav.tabBarItem = UITabBarItem(title: "Video", image: UIImage(systemName: "play.rectangle"), tag: 2)
