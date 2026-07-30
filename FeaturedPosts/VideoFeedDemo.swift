@@ -603,6 +603,9 @@ final class VideoFeedViewController: UIViewController {
     private var shouldResumeAfterForeground = false
     private var debugMetrics = VideoDebugMetrics()
 
+    private var playCount: Int = 0
+    private var firstFrameSamplesMS: [Int] = []
+
     init(items: [VideoFeedItem], imageLoader: ImageLoading, networkMonitor: NetworkMonitoring, featureFlags: FeatureFlagProviding, analytics: AnalyticsTracking) {
         self.items = items
         self.imageLoader = imageLoader
@@ -631,20 +634,24 @@ final class VideoFeedViewController: UIViewController {
         playerEngine.onFirstFrame = { [weak self] duration, source in
             guard let self, let indexPath = self.currentPlayingIndexPath else { return }
             let item = self.items[indexPath.row]
+            let ms = Int(duration * 1000)
+
+            self.firstFrameSamplesMS.append(ms)
             self.debugMetrics.currentVideoID = item.id
             self.debugMetrics.currentSource = source
-            self.debugMetrics.lastFirstFrameMS = Int(duration * 1000)
+            self.debugMetrics.lastFirstFrameMS = ms
             self.analytics.track(.videoFirstFrame, properties: [
                 "video_id": item.id,
-                "duration_ms": Int(duration * 1000),
+                "duration_ms": ms,
                 "source": source
             ])
             if self.pendingAutoplayIndexPath == indexPath {
-                self.pendingAutoplayIndexPath = nil
-                self.debugMetrics.autoplayHits += 1
-                self.analytics.track(.videoAutoplayHit, properties: ["video_id": item.id])
-            }
-            self.updateDebugPanel()
+            self.pendingAutoplayIndexPath = nil
+            self.debugMetrics.autoplayHits += 1
+            self.analytics.track(.videoAutoplayHit, properties: ["video_id": item.id])
+        }
+        self.updateDebugPanel()
+        self.logPerfSummaryIfNeeded()
         }
 
         tableView.register(VideoFeedCell.self, forCellReuseIdentifier: VideoFeedCell.reuseIdentifier)
@@ -770,6 +777,7 @@ final class VideoFeedViewController: UIViewController {
         currentPlayingIndexPath = indexPath
         let item = items[indexPath.row]
         debugMetrics.currentVideoID = item.id
+        playCount += 1
 
         if let cell = tableView.cellForRow(at: indexPath) as? VideoFeedCell {
             playerEngine.attach(to: cell.playerContainerView)
@@ -864,6 +872,40 @@ final class VideoFeedViewController: UIViewController {
 
     private func updateDebugPanel() {
         debugPanelLabel.text = "  \(debugMetrics.debugText.replacingOccurrences(of: "\n", with: "\n  "))  "
+    }
+
+    private func logPerfSummaryIfNeeded() {
+        guard playCount > 0 else { return }
+        guard firstFrameSamplesMS.isEmpty == false else { return }
+        guard playCount % 10 == 0 else { return }
+
+        let sorted = firstFrameSamplesMS.sorted()
+        let p50 = percentile(sorted, p: 0.50)
+        let p90 = percentile(sorted, p: 0.90)
+        let p99 = percentile(sorted, p: 0.99)
+
+        let bufferingPer100 = Double(debugMetrics.bufferingCount) * 100.0 / Double(playCount)
+        let diskPct = Double(debugMetrics.cacheHitCount) * 100.0 / Double(playCount)
+        let autoplayPct: Double
+        if debugMetrics.autoplayAttempts > 0 {
+            autoplayPct = Double(debugMetrics.autoplayHits) * 100.0 / Double(debugMetrics.autoplayAttempts)
+        } else {
+            autoplayPct = 0
+        }
+
+        let line = String(
+            format: "[VideoPerf] plays=%d | FFP: P50=%dms P90=%dms P99=%dms | Buffering: %.1f/100 plays | CacheHit(disk): %.1f%% | AutoplayHitRate: %.1f%%",
+            playCount, p50, p90, p99, bufferingPer100, diskPct, autoplayPct
+        )
+        print(line)
+    }
+
+    private func percentile(_ sortedAscending: [Int], p: Double) -> Int {
+        guard sortedAscending.isEmpty == false else { return 0 }
+        let clamped = max(0.0, min(1.0, p))
+        let rank = Int(ceil(clamped * Double(sortedAscending.count)))
+        let index = max(0, min(sortedAscending.count - 1, rank - 1))
+        return sortedAscending[index]
     }
 }
 
