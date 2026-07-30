@@ -8,10 +8,10 @@ final class LaunchMetrics {
 
     private let log = OSLog(subsystem: "FeaturedPosts", category: "Launch")
     private let logger = Logger(subsystem: "FeaturedPosts", category: "Launch")
-    private lazy var coldStartID = OSSignpostID(log: log)
+    private lazy var ttidID = OSSignpostID(log: log)
 
     private let t0 = ProcessInfo.processInfo.systemUptime
-    private var coldStartBegan = false
+    private var ttidBegan = false
     private var firstFrameRecorded = false
     private var displayLink: CADisplayLink?
 
@@ -26,10 +26,10 @@ final class LaunchMetrics {
     }
 
     func appDidFinishLaunchingStart() {
-        guard !coldStartBegan else { return }
-        coldStartBegan = true
+        guard !ttidBegan else { return }
+        ttidBegan = true
         emit("didFinishLaunching_start")
-        os_signpost(.begin, log: log, name: "ColdStart", signpostID: coldStartID)
+        os_signpost(.begin, log: log, name: "TTID", signpostID: ttidID)
         os_signpost(.event, log: log, name: "didFinishLaunching_start")
     }
 
@@ -64,6 +64,6 @@ final class LaunchMetrics {
 
         emit("first_frame")
         os_signpost(.event, log: log, name: "first_frame")
-        os_signpost(.end, log: log, name: "ColdStart", signpostID: coldStartID)
+        os_signpost(.end, log: log, name: "TTID", signpostID: ttidID)
     }
 }
