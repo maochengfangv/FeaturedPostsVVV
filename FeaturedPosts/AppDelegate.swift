@@ -11,6 +11,8 @@ import os
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        LaunchMetrics.shared.appDidFinishLaunchingStart()
+
        URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024, diskPath: "urlcache")
 
         FeatureFlagCenter.shared.registerDefaults([
@@ -26,6 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         CrashReporter.shared.start()
         MemoryGuard.shared.start(imageCache: ImageLoader.shared.memoryCache)
 
+        LaunchMetrics.shared.appDidFinishLaunchingEnd()
         return true
     }
 

@@ -13,6 +13,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        LaunchMetrics.shared.sceneWillConnectStart()
         guard let windowScene = scene as? UIWindowScene else { return }
 
         let featureFlags = FeatureFlagCenter.shared
@@ -59,6 +60,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = tab
         window.makeKeyAndVisible()
         self.window = window
+
+        LaunchMetrics.shared.sceneWillConnectEnd()
+        LaunchMetrics.shared.startFirstFrameTracking()
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
