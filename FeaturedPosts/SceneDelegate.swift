@@ -50,7 +50,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             featureFlags: featureFlags,
             analytics: analytics
         )
-        let videoNav = UINavigationController(rootViewController: video)
+        let videoNav = UINavigationController(rootViewController: FeedViewController())
         videoNav.tabBarItem = UITabBarItem(title: "Video", image: UIImage(systemName: "play.rectangle"), tag: 2)
 
         let tab = UITabBarController()
